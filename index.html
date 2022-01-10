@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Photo Filter</title>
+    <base href="./" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        margin: 0;
+      }
+      #canvas {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 32rem;
+        height: 32rem;
+        transform: translate(-50%, -50%);
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas" width="512" height="512"></canvas>
+    <script src="./filters.js"></script>
+    <script>
+      ;(async function () {
+        // Formatted by StandardJS
+
+        const keys = {}
+        const up = 69 // e
+        const left = 83 // s
+        const down = 68 // d
+        const right = 70 // f
+
+        const filters = [
+          brightness,
+          contrast,
+          saturation,
+          gamma,
+          grayscale,
+          threshold,
+          pixelate
+        ]
+
+        let index = 0
+        let effect = filters[index]
+
+        const canvas = document.getElementById('canvas')
+        const context = canvas.getContext('2d')
+
+        const width = canvas.width
+        const height = canvas.height
+
+        const rate = 0.1
+
+        let previous = 0
+        let input = 0
+        let value = 0
+        let image = {}
+
+        // function round (value, digits = 3) {
+        //   return value.toFixed(digits)
+        // }
+
+        function round (value, digits = 3) {
+          const factor = Math.pow(10, digits)
+          return Math.round(value * factor) / factor
+        }
+
+        function renderText () {
+          const s = 20
+          const w = 176
+          const h = 136
+          const x = width - w + 16
+          const y = height - h + 22
+
+          context.fillStyle = 'rgba(0, 0, 0, 0.5)'
+          context.fillRect(width - w, height - h, w, h)
+
+          context.fillStyle = 'rgba(255, 255, 255, 1)'
+          context.font = '12px monospace'
+
+          context.fillText('Filter:   ' + effect.name, x, y + s * 0)
+          context.fillText('Value:    ' + input, x, y + s * 1)
+          context.fillText('Next:     F', x, y + s * 2)
+          context.fillText('Previous: S', x, y + s * 3)
+          context.fillText('Increase: E', x, y + s * 4)
+          context.fillText('Decrease: D', x, y + s * 5)
+        }
+
+        function update (time) {
+          const delta = time - previous
+
+          previous = time
+
+          if (keys[up]) {
+            value += rate * delta
+          }
+
+          if (keys[down]) {
+            value -= rate * delta
+          }
+
+          if (effect === gamma) {
+            value = clamp(value, 0, 384)
+            input = round(Math.round(value) / 128)
+          } else if (effect === grayscale) {
+            input = '-'
+          } else if (effect === threshold) {
+            value = clamp(value, 0, 255)
+            input = Math.round(value)
+          } else if (effect === pixelate) {
+            value = clamp(value, 0, 256)
+            input = Math.pow(2, Math.round(value / 32))
+          } else {
+            value = clamp(value, -255, 255)
+            input = Math.round(value)
+          }
+        }
+
+        function render () {
+          if (effect === gamma) {
+            drawImage(context, image, gamma, [input])
+          } else if (effect === grayscale) {
+            drawImage(context, image, grayscale)
+          } else if (effect === threshold) {
+            drawImage(context, image, threshold, [input])
+          } else if (effect === pixelate) {
+            drawImage(context, image, pixelate, [width, height, input])
+          } else {
+            drawImage(context, image, effect, [input])
+          }
+          renderText()
+        }
+
+        function loop (time) {
+          requestAnimationFrame(loop)
+          update(time)
+          render(time)
+        }
+
+        function initEffect (direction) {
+          index = (index + direction) % filters.length
+
+          if (index < 0) {
+            index = filters.length - 1
+          }
+
+          effect = filters[index]
+
+          if (effect === gamma) {
+            value = 128
+          } else if (effect === grayscale) {
+            value = 127
+          } else if (effect === threshold) {
+            const { mean } = getAverage(getData(image))
+            value = mean
+          } else if (effect === pixelate) {
+            value = 128
+          } else {
+            value = 0
+          }
+        }
+
+        function keyEvent (e) {
+          if (e.which === left) {
+            initEffect(-1)
+          }
+
+          if (e.which === right) {
+            initEffect(1)
+          }
+        }
+
+        async function main () {
+          image = await loadImage('./flower.jpg')
+          image.width = width
+          image.height = height
+
+          document.onkeydown = function (e) {
+            keys[e.which] = true
+            keyEvent(e)
+          }
+
+          document.onkeyup = function (e) {
+            keys[e.which] = false
+          }
+
+          window.onload = () => requestAnimationFrame(loop)
+        }
+
+        main()
+      })()
+    </script>
+  </body>
+</html>
